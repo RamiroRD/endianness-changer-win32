@@ -25,7 +25,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
-    // TODO: Place code here.
+    INITCOMMONCONTROLSEX picce;
+    picce.dwICC  =  ICC_WIN95_CLASSES | ICC_STANDARD_CLASSES;
+    picce.dwSize = sizeof(picce);
+    InitCommonControlsEx(&picce);
 
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);

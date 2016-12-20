@@ -100,8 +100,13 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
+   const int WIDTH  = 350;
+   const int HEIGHT = 200;
+   const int XPOS = (GetSystemMetrics(SM_CXSCREEN) - WIDTH ) / 2;
+   const int YPOS = (GetSystemMetrics(SM_CYSCREEN) - HEIGHT) / 2;
+
    HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+      XPOS, YPOS, WIDTH, HEIGHT, nullptr, nullptr, hInstance, nullptr);
 
    if (!hWnd)
    {

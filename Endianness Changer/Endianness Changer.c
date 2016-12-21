@@ -280,6 +280,41 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     }
     case WM_COMMAND:
+        if (HIWORD(wParam) == BN_CLICKED)
+        {
+            if ((HWND)lParam == srcBrowseButton)
+            {
+                MessageBoxA(hWnd, "...", "Src", MB_OK);
+            }
+            if ((HWND)lParam == desBrowseButton)
+            {
+                MessageBoxA(hWnd, "...", "Des", MB_OK);
+            }
+            if ((HWND)lParam == sameCheckBox)
+            {
+                if (Button_GetCheck(sameCheckBox))
+                {
+                    EnableWindow(desLabel       , TRUE);
+                    EnableWindow(desBrowseButton, TRUE);
+                    EnableWindow(desTextBox     , TRUE);
+                    Button_SetCheck(sameCheckBox, BST_UNCHECKED);
+                }
+                else {
+                    EnableWindow(desLabel       , FALSE);
+                    EnableWindow(desBrowseButton, FALSE);
+                    EnableWindow(desTextBox     , FALSE);
+                    Button_SetCheck(sameCheckBox, BST_CHECKED);
+                }
+            }
+            if ((HWND)lParam == goButton)
+            {
+
+                MessageBoxA(hWnd, "Progress bar goes here.", "", MB_OK);
+            }
+        }
+        
+        
+            
         break;
     case WM_SIZE:
     {

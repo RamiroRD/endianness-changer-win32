@@ -10,12 +10,12 @@
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
-const int MIN_WIDTH = 350;
-const int MIN_HEIGHT = 210;
-const int WIDTH = 450;
-const int HEIGHT = 225;
-const int MAX_WIDTH = 1000;
-const int MAX_HEIGHT = 300;
+const MIN_WIDTH = 350;
+const MIN_HEIGHT = 240;
+const WIDTH = 450;
+const HEIGHT = 240;
+const MAX_WIDTH = 1000;
+const MAX_HEIGHT = 240;
 HWND  srcLabel;
 HWND  srcTextBox;
 HWND  srcBrowseButton;
@@ -23,8 +23,14 @@ HWND  desLabel;
 HWND  desTextBox;
 HWND  desBrowseButton;
 HWND  sameCheckBox;
+HWND  wordSelect;
+HWND  wordLabel;
 HWND  goButton;
-
+WCHAR  srcPath[MAX_PATH];
+WCHAR  desPath[MAX_PATH];
+const UCHAR WORD_SIZES = 4;
+const WCHAR * WORD_SIZES_STRINGS[4] = { L"2", L"4", L"8", L"16" };
+const WCHAR * fuckyou = L"Ugh";
 // Forward declarations of functions included in this code module:
 ATOM                registerWindowClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
@@ -137,6 +143,7 @@ void createWidgets(HWND hWnd)
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         hWnd, NULL, NULL, NULL);
+
     desLabel = CreateWindowW(WC_STATICW, L"Destination file:",
         WS_CHILD | WS_VISIBLE,
         CW_USEDEFAULT,
@@ -161,6 +168,22 @@ void createWidgets(HWND hWnd)
         CW_USEDEFAULT,
         hWnd, NULL, NULL, NULL);
 
+    wordLabel = CreateWindowW(WC_STATICW, L"Word size (bytes):",
+        WS_CHILD | WS_VISIBLE,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        hWnd, NULL, NULL, NULL);
+
+    wordSelect = CreateWindowW(WC_COMBOBOXW, NULL,
+        WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        hWnd, NULL, NULL, NULL);
+
     sameCheckBox = CreateWindowW(WC_BUTTONW, L"Write changes to source file",
         WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
         CW_USEDEFAULT,
@@ -169,14 +192,20 @@ void createWidgets(HWND hWnd)
         CW_USEDEFAULT,
         hWnd, NULL, NULL, NULL);
 
-    goButton = CreateWindowW(WC_BUTTONW, L"Run",
-        WS_CHILD | WS_VISIBLE,
+    goButton = CreateWindowW(WC_BUTTONW, L"Convert",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         hWnd, NULL, NULL, NULL);
 
+    // Add word sizes to the word size selector
+    for(UCHAR i = 0; i<WORD_SIZES; i++)
+        SendMessage(wordSelect, CB_ADDSTRING, (WPARAM)NULL, (LPARAM)WORD_SIZES_STRINGS[i]);
+
+    // Set default GUI fonts to all windows. 
+    // "System default font" is that 3.1-like ugly ass font.
     NONCLIENTMETRICS metrics;
     metrics.cbSize = sizeof(NONCLIENTMETRICS);
     SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS),
@@ -188,8 +217,11 @@ void createWidgets(HWND hWnd)
     SendMessageW(desLabel, WM_SETFONT, (WPARAM)font, FALSE);
     SendMessageW(desTextBox, WM_SETFONT, (WPARAM)font, FALSE);
     SendMessageW(desBrowseButton, WM_SETFONT, (WPARAM)font, FALSE);
+    SendMessageW(wordLabel, WM_SETFONT, (WPARAM)font, FALSE);
+    SendMessageW(wordSelect, WM_SETFONT, (WPARAM)font, FALSE);
     SendMessageW(sameCheckBox, WM_SETFONT, (WPARAM)font, FALSE);
     SendMessageW(goButton, WM_SETFONT, (WPARAM)font, FALSE);
+    EnableWindow(goButton, FALSE);
 }
 
 void resizeWidgets(const int width, const int height)
@@ -204,6 +236,7 @@ void resizeWidgets(const int width, const int height)
     const BUTTON_WIDTH = 75;
     const LABEL_HEIGHT = 15;
     const TEXTBOX_HEIGHT = 23;
+    const COMBOBOX_HEIGHT = 23;
     const AREA_WIDTH = WWIDTH - (2 * HMARGIN);
 
     int currentY = VMARGIN;
@@ -231,6 +264,14 @@ void resizeWidgets(const int width, const int height)
     currentY += TEXTBOX_HEIGHT + VGAP;
 
     DeferWindowPos(positions,
+        sameCheckBox,
+        NULL,
+        HMARGIN,
+        currentY,
+        AREA_WIDTH, BUTTON_HEIGHT, 0);
+    currentY += BUTTON_HEIGHT + VGAP;
+
+    DeferWindowPos(positions,
         desLabel,
         NULL,
         HMARGIN,
@@ -254,20 +295,37 @@ void resizeWidgets(const int width, const int height)
     currentY += TEXTBOX_HEIGHT + VGAP;
 
     DeferWindowPos(positions,
-        sameCheckBox,
+        wordLabel,
+        NULL,
+        HMARGIN ,
+        currentY,
+        AREA_WIDTH, LABEL_HEIGHT, 0);
+    currentY += LABEL_HEIGHT + VGAP;
+
+    DeferWindowPos(positions,
+        wordSelect,
         NULL,
         HMARGIN,
         currentY,
-        AREA_WIDTH, BUTTON_HEIGHT, 0);
+        BUTTON_WIDTH, COMBOBOX_HEIGHT, 0);
 
     DeferWindowPos(positions,
         goButton,
         NULL,
-        HMARGIN + (AREA_WIDTH - BUTTON_WIDTH) / 2,
-        WHEIGHT - VMARGIN - BUTTON_HEIGHT,
+        HMARGIN + (AREA_WIDTH - BUTTON_WIDTH),
+        currentY,
         BUTTON_WIDTH, BUTTON_HEIGHT, 0);
 
     EndDeferWindowPos(positions);
+}
+
+void setGoButtonState()
+{
+    BOOL isSrcSet = GetWindowTextLengthW(srcTextBox) > 0;
+    BOOL isDesSet = GetWindowTextLengthW(desTextBox) > 0;
+    BOOL isWordSizeSet = SendMessage(wordSelect, CB_GETCURSEL, (WPARAM)NULL, (LPARAM)NULL) != CB_ERR;
+    BOOL isDestSrc = !Button_GetCheck(sameCheckBox);
+    EnableWindow(goButton, isSrcSet && isWordSizeSet && (!isDestSrc || isDesSet));
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -284,11 +342,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             if ((HWND)lParam == srcBrowseButton)
             {
-                MessageBoxA(hWnd, "...", "Src", MB_OK);
+                OPENFILENAME lpofn;
+                memset(&lpofn, 0, sizeof(lpofn));
+                lpofn.lStructSize = sizeof(lpofn);
+                lpofn.hwndOwner = hWnd;
+                lpofn.hInstance = hInst;
+                lpofn.lpstrFile = srcPath;
+                lpofn.nMaxFile  = MAX_PATH;
+                if(GetOpenFileName(&lpofn))
+                    SetWindowTextW(srcTextBox, srcPath);
             }
             if ((HWND)lParam == desBrowseButton)
             {
-                MessageBoxA(hWnd, "...", "Des", MB_OK);
+                OPENFILENAME lpofn;
+                memset(&lpofn, 0, sizeof(lpofn));
+                lpofn.lStructSize = sizeof(lpofn);
+                lpofn.hwndOwner = hWnd;
+                lpofn.hInstance = hInst;
+                lpofn.lpstrFile = desPath;
+                lpofn.nMaxFile = MAX_PATH;
+                if (GetOpenFileName(&lpofn))
+                    SetWindowTextW(desTextBox, desPath);
             }
             if ((HWND)lParam == sameCheckBox)
             {
@@ -308,13 +382,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
             if ((HWND)lParam == goButton)
             {
-
-                MessageBoxA(hWnd, "Progress bar goes here.", "", MB_OK);
+                // We assume everything was input by now
+                LRESULT selectResult = SendMessage(wordSelect, CB_GETCURSEL, (WPARAM)NULL, (LPARAM)NULL);
+                BOOL destIsSrc = !Button_GetCheck(sameCheckBox);
+                int wordSize = 1 << (selectResult + 1);
+                // Copy src and dest from text boxes
+                // I dont know if its safe to just their pointers
+                //wmemcpy_s()
             }
-        }
-        
-        
             
+        }
+        setGoButtonState();
         break;
     case WM_SIZE:
     {

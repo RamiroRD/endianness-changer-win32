@@ -10,6 +10,16 @@
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+const int WIDTH = 450;
+const int HEIGHT = 225;
+HWND  srcLabel;
+HWND  srcTextBox;
+HWND  srcBrowseButton;
+HWND  desLabel;
+HWND  desTextBox;
+HWND  desBrowseButton;
+HWND  sameCheckBox;
+HWND  goButton;
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -78,7 +88,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.hInstance      = hInstance;
     wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ENDIANNESSCHANGER));
     wcex.hCursor        = LoadCursor(NULL, IDC_ARROW);
-    wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
+    wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW);
     wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_ENDIANNESSCHANGER);
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
@@ -99,9 +109,6 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
-
-   const int WIDTH  = 350;
-   const int HEIGHT = 200;
    const int XPOS = (GetSystemMetrics(SM_CXSCREEN) - WIDTH ) / 2;
    const int YPOS = (GetSystemMetrics(SM_CYSCREEN) - HEIGHT) / 2;
 
@@ -132,8 +139,175 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+    case WM_CREATE:
+    {
+        srcLabel = CreateWindowW(WC_STATICW, L"Source file:",
+                                 WS_CHILD | WS_VISIBLE,
+                                 CW_USEDEFAULT,
+                                 CW_USEDEFAULT,
+                                 CW_USEDEFAULT,
+                                 CW_USEDEFAULT,
+                                 hWnd, NULL, NULL, NULL);
+        
+        srcTextBox = CreateWindowExW(WS_EX_CLIENTEDGE, WC_EDITW, NULL,
+                                  WS_CHILD | WS_VISIBLE,
+                                  CW_USEDEFAULT,
+                                  CW_USEDEFAULT,
+                                  CW_USEDEFAULT,
+                                  CW_USEDEFAULT,
+                                  hWnd, NULL, NULL, NULL);
+
+        srcBrowseButton = CreateWindowW(WC_BUTTONW, L"...",
+            WS_CHILD | WS_VISIBLE ,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            hWnd, NULL, NULL, NULL);
+        desLabel = CreateWindowW(WC_STATICW, L"Destination file:",
+            WS_CHILD | WS_VISIBLE,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            hWnd, NULL, NULL, NULL);
+
+        desTextBox = CreateWindowExW(WS_EX_CLIENTEDGE,WC_EDITW, NULL,
+            WS_CHILD | WS_VISIBLE,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            hWnd, NULL, NULL, NULL);
+
+        desBrowseButton = CreateWindowW(WC_BUTTONW, L"...",
+            WS_CHILD | WS_VISIBLE,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            hWnd, NULL, NULL, NULL);
+
+        sameCheckBox = CreateWindowW(WC_BUTTONW,L"Write changes to source file",
+            WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            hWnd, NULL, NULL, NULL);
+
+        goButton = CreateWindowW(WC_BUTTONW, L"Run",
+            WS_CHILD | WS_VISIBLE,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            hWnd, NULL, NULL, NULL);
+
+        NONCLIENTMETRICS metrics;
+        metrics.cbSize = sizeof(NONCLIENTMETRICS);
+        SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS),
+            &metrics, 0);
+        HFONT font = CreateFontIndirect(&metrics.lfMessageFont);
+        SendMessageW(srcLabel        , WM_SETFONT, (WPARAM)font, FALSE);
+        SendMessageW(srcTextBox      , WM_SETFONT, (WPARAM)font, FALSE);
+        SendMessageW(srcBrowseButton , WM_SETFONT, (WPARAM)font, FALSE);
+        SendMessageW(desLabel        , WM_SETFONT, (WPARAM)font, FALSE);
+        SendMessageW(desTextBox      , WM_SETFONT, (WPARAM)font, FALSE);
+        SendMessageW(desBrowseButton , WM_SETFONT, (WPARAM)font, FALSE);
+        SendMessageW(sameCheckBox    , WM_SETFONT, (WPARAM)font, FALSE);
+        SendMessageW(goButton        , WM_SETFONT, (WPARAM)font, FALSE);
+        break;
+    }
     case WM_COMMAND:
         break;
+    case WM_SIZE:
+    {
+        const WWIDTH               = LOWORD(lParam);
+        const WHEIGHT              = HIWORD(lParam);
+        const HMARGIN              = 20;
+        const VMARGIN              = 10;
+        const VGAP                 = 5;
+        const BUTTON_HEIGHT        = 25;
+        const BROWSE_BUTTON_WIDTH  = 30;
+        const BUTTON_WIDTH         = 75;
+        const LABEL_HEIGHT         = 15;
+        const TEXTBOX_HEIGHT       = 23;
+        const AREA_WIDTH           = WWIDTH - (2 * HMARGIN);
+
+        int currentY = VMARGIN;
+        HDWP positions = BeginDeferWindowPos(10);
+        DeferWindowPos(positions,
+                       srcLabel,
+                       NULL,
+                       HMARGIN,
+                       currentY,
+                       AREA_WIDTH, LABEL_HEIGHT, 0);
+        currentY += LABEL_HEIGHT + VGAP;
+        DeferWindowPos(positions,
+            srcTextBox,
+            NULL,
+            HMARGIN,
+            currentY,
+            AREA_WIDTH - BROWSE_BUTTON_WIDTH - 5, TEXTBOX_HEIGHT, 0);
+
+        DeferWindowPos(positions,
+            srcBrowseButton,
+            NULL,
+            HMARGIN + AREA_WIDTH - BROWSE_BUTTON_WIDTH,
+            currentY-1,
+            BROWSE_BUTTON_WIDTH, BUTTON_HEIGHT, 0);
+        currentY += TEXTBOX_HEIGHT + VGAP;
+
+        DeferWindowPos(positions,
+            desLabel,
+            NULL,
+            HMARGIN,
+            currentY,
+            AREA_WIDTH, LABEL_HEIGHT, 0);
+        currentY += LABEL_HEIGHT + VGAP;
+
+        DeferWindowPos(positions,
+            desTextBox,
+            NULL,
+            HMARGIN,
+            currentY,
+            AREA_WIDTH - BROWSE_BUTTON_WIDTH - 5, TEXTBOX_HEIGHT, 0);
+
+        DeferWindowPos(positions,
+            desBrowseButton,
+            NULL,
+            HMARGIN + AREA_WIDTH - BROWSE_BUTTON_WIDTH,
+            currentY - 1,
+            BROWSE_BUTTON_WIDTH, BUTTON_HEIGHT, 0);
+        currentY += TEXTBOX_HEIGHT + VGAP;
+
+        DeferWindowPos(positions,
+            sameCheckBox,
+            NULL,
+            HMARGIN,
+            currentY,
+            AREA_WIDTH, BUTTON_HEIGHT, 0);
+
+        DeferWindowPos(positions,
+            goButton,
+            NULL,
+            HMARGIN + (AREA_WIDTH - BUTTON_WIDTH)/2,
+            WHEIGHT-VMARGIN-BUTTON_HEIGHT,
+            BUTTON_WIDTH, BUTTON_HEIGHT, 0);
+
+        EndDeferWindowPos(positions);
+        return DefWindowProc(hWnd, message, wParam, MAKELPARAM(WWIDTH, WHEIGHT));
+    }
+        break;
+    case WM_GETMINMAXINFO:
+    {
+        LPMINMAXINFO lpMMI = (LPMINMAXINFO)lParam;
+        lpMMI->ptMinTrackSize.x = WIDTH;
+        lpMMI->ptMaxTrackSize.y = HEIGHT;
+        lpMMI->ptMinTrackSize.y = HEIGHT;
+        break;
+    }
     case WM_DESTROY:
         PostQuitMessage(0);
         break;

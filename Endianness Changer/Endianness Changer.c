@@ -1,8 +1,6 @@
-// Endianness Changer.cpp : Defines the entry point for the application.
-//
-
 #include "stdafx.h"
 #include "Endianness Changer.h"
+#include "convert.h"
 
 #define MAX_LOADSTRING 100
 
@@ -30,7 +28,6 @@ WCHAR  srcPath[MAX_PATH];
 WCHAR  desPath[MAX_PATH];
 const UCHAR WORD_SIZES = 4;
 const WCHAR * WORD_SIZES_STRINGS[4] = { L"2", L"4", L"8", L"16" };
-const WCHAR * fuckyou = L"Ugh";
 // Forward declarations of functions included in this code module:
 ATOM                registerWindowClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
@@ -328,6 +325,20 @@ void setGoButtonState()
     EnableWindow(goButton, isSrcSet && isWordSizeSet && (!isDestSrc || isDesSet));
 }
 
+void printErrorMessage(HWND hWnd)
+{
+    MessageBoxW(hWnd,
+        L"printErrorMessage", "..", MB_OK);
+}
+
+BOOL fileExists(LPWSTR szPath)
+{
+    DWORD dwAttrib = GetFileAttributesW(szPath);
+
+    return (dwAttrib != INVALID_FILE_ATTRIBUTES &&
+        !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
+}
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
@@ -384,11 +395,68 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             {
                 // We assume everything was input by now
                 LRESULT selectResult = SendMessage(wordSelect, CB_GETCURSEL, (WPARAM)NULL, (LPARAM)NULL);
-                BOOL destIsSrc = !Button_GetCheck(sameCheckBox);
+                BOOL destIsSrc = Button_GetCheck(sameCheckBox);
                 int wordSize = 1 << (selectResult + 1);
                 // Copy src and dest from text boxes
                 // I dont know if its safe to just their pointers
-                //wmemcpy_s()
+                GetWindowTextW(srcTextBox, srcPath, MAX_PATH);
+                GetWindowTextW(desTextBox, desPath, MAX_PATH);
+
+                HANDLE src;
+                if (destIsSrc)
+                    src = CreateFileW(srcPath,
+                        GENERIC_READ | GENERIC_WRITE,
+                        0,
+                        NULL,
+                        OPEN_EXISTING,
+                        FILE_ATTRIBUTE_NORMAL,
+                        NULL
+                        );
+                else
+                    src = CreateFileW(srcPath,
+                        GENERIC_READ,
+                        FILE_SHARE_READ,
+                        NULL,
+                        OPEN_EXISTING,
+                        FILE_ATTRIBUTE_NORMAL,
+                        NULL
+                    );
+                if (src == INVALID_HANDLE_VALUE)
+                {
+                    printErrorMessage(GetLastError());
+                    return 0;
+                }
+
+                if (destIsSrc)
+                {
+                    convertFiles(src, NULL, wordSize, NULL);
+                }
+                else
+                {
+                    if (fileExists(desPath))
+                    {
+                        int mbResult = MessageBoxW(hWnd,
+                            L"Do you want to overwrite the destination file?",
+                            L"Destination file already exists",
+                            MB_OKCANCEL | MB_ICONQUESTION);
+                        if (mbResult == IDCANCEL)
+                        {
+                            CloseHandle(src);
+                            return 0;
+                        }
+                    }
+
+                    HANDLE dest = CreateFileW(desPath,
+                        GENERIC_READ | GENERIC_WRITE,
+                        0,
+                        NULL,
+                        CREATE_ALWAYS,
+                        FILE_ATTRIBUTE_NORMAL,
+                        NULL
+                    );
+
+                    convertFiles(src, dest, wordSize, NULL);
+                }
             }
             
         }

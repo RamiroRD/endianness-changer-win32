@@ -3,4 +3,4 @@
 #include "stdafx.h"
 
 
-BOOL convertFiles(HANDLE src, HANDLE des, UCHAR wordSize, BOOL overwrite, DWORD64 * bytesWritten);
+BOOL convertFiles(HANDLE src, HANDLE des, UCHAR wordSize, DWORD64 * bytesWritten);

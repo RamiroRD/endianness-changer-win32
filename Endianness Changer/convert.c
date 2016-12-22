@@ -61,7 +61,7 @@ BOOL isPowerOfTwo(UCHAR x)
     return (x != 0) && ((x & (x - 1)) == 0);
 }
 
-BOOL convertFiles(HANDLE src, HANDLE des, UCHAR wordSize, BOOL overwrite, DWORD64 * bytesWritten)
+BOOL convertFiles(HANDLE src, HANDLE des, UCHAR wordSize, DWORD64 * bytesWritten)
 {
     // Check if word_size is a power of 2.
     if (!isPowerOfTwo(wordSize))

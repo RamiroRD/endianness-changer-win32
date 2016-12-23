@@ -3,18 +3,35 @@
 #include "convert.h"
 #include "math.h"
 
-
-// TODO: Use hard coded conversions for 2, 4, 8 and 16 word sizes.
-static void convertWord(char * word_ptr, int word_size)
+static void convertWord(char * word_ptr, UCHAR word_size)
 {
     int i;
     char aux;
-    for (i = 0; i<word_size / 2; i++)
+    for (i = 0; i < word_size / 2; i++)
     {
         aux = word_ptr[word_size - i - 1];
         word_ptr[word_size - i - 1] = word_ptr[i];
         word_ptr[i] = aux;
     }
+}
+
+static void convertWord2(char * word_ptr)
+{
+    char aux = word_ptr[0];
+    word_ptr[0] = word_ptr[1];
+    word_ptr[1] = aux;
+}
+
+static void convertWord4(char * word_ptr)
+{
+    char aux = word_ptr[0];
+    // outer
+    word_ptr[0] = word_ptr[3];
+    word_ptr[3] = aux;
+    // inner
+    aux = word_ptr[1];
+    word_ptr[1] = word_ptr[2];
+    word_ptr[2] = aux;
 }
 
 
@@ -49,7 +66,17 @@ static DWORD64 _convertFiles(HANDLE src,
             break;
         totalRead += bytesRead;
 
-        convertWord(buffer, word_size);
+        switch (word_size)
+        {
+        case 2:
+            convertWord2(buffer);
+        case 4:
+            convertWord4(buffer);
+        default:
+            convertWord(buffer, word_size);
+        }
+        
+
         if (dest == NULL)
         {
             if (SetFilePointer(src, -word_size, NULL, FILE_CURRENT) == INVALID_SET_FILE_POINTER)
@@ -63,7 +90,7 @@ static DWORD64 _convertFiles(HANDLE src,
         }
         totalWritten += bytesWritten;
         if (progress)
-            *progress = 100.0 * ((float)totalWritten / size.QuadPart);
+            *progress = (int) (100.0 * ((float)totalWritten / size.QuadPart));
     }
     return totalWritten;
 }

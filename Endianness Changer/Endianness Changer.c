@@ -329,8 +329,16 @@ void setGoButtonState()
 
 void printErrorMessage(HWND hWnd, DWORD errorCode)
 {
+    LPWSTR message;
+    FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+        errorCode,
+        0,
+        (LPTSTR)&message,
+        512,
+        NULL);
     MessageBoxW(hWnd,
-        L"printErrorMessage", L"..", MB_OK);
+        message, L"Error", MB_OK | MB_ICONERROR);
+    HeapFree(GetProcessHeap(), 0, message);
 }
 
 DWORD CALLBACK doConvert(LPVOID arg)
@@ -356,24 +364,40 @@ HRESULT CALLBACK taskDialogCallbackProc(HWND hWnd,
     {
     case TDN_CREATED:
     {
+        SendMessageW(hWnd, TDM_ENABLE_BUTTON, TDCBF_OK_BUTTON, FALSE);
         workerThread = CreateThread(NULL, 0, doConvert, (LPVOID) convertArgs, 0, NULL);
         break;
     }
     case TDN_DESTROYED:
     {
-        DWORD exitCode;
+        
         WaitForSingleObject(workerThread, INFINITE);
-        GetExitCodeThread(workerThread, &exitCode);
-        if (!exitCode)
-            printErrorMessage(hWnd, GetLastError());
-        break;
+
     }
     case TDN_TIMER:
     {
         int progress = ((CONVERTARGS *)convertArgs)->progress;
-        SendMessage(hWnd, TDM_SET_PROGRESS_BAR_POS, progress, (LPARAM)NULL);
-        if (WaitForSingleObject(workerThread, 0) == WAIT_OBJECT_0)
-            SendMessage(hWnd, TDN_DESTROYED, 0, 0);
+
+            SendMessage(hWnd, TDM_SET_PROGRESS_BAR_POS, progress, (LPARAM)NULL);
+            if (WaitForSingleObject(workerThread, 0) == WAIT_OBJECT_0)
+            {
+                DWORD exitCode;
+                SendMessageW(hWnd, TDM_ENABLE_BUTTON, TDCBF_OK_BUTTON, TRUE);
+                SendMessageW(hWnd, TDM_ENABLE_BUTTON, TDCBF_CANCEL_BUTTON, FALSE);
+                GetExitCodeThread(workerThread, &exitCode);
+                workerThread = NULL;
+                if (!((CONVERTARGS *)convertArgs)->cancel)
+                {
+                    if (!exitCode)
+                        printErrorMessage(hWnd, GetLastError());
+                    else
+                        MessageBoxW(hWnd, L"Conversion successful", L"Finished", MB_OK | MB_ICONASTERISK);
+                }
+                break;
+            }
+      
+
+            
         break;
     }
     case TDN_BUTTON_CLICKED:
@@ -396,8 +420,12 @@ void startConversion(HWND hWnd, CONVERTARGS * convertArgs)
     dialogConfig.cbSize = sizeof(dialogConfig);
     dialogConfig.hwndParent = hWnd;
     dialogConfig.hInstance = hInst;
-    dialogConfig.dwFlags = TDF_SHOW_PROGRESS_BAR | TDF_CALLBACK_TIMER |TDF_POSITION_RELATIVE_TO_WINDOW;
-    dialogConfig.dwCommonButtons = TDCBF_CANCEL_BUTTON;
+    dialogConfig.dwFlags = 
+        TDF_SHOW_PROGRESS_BAR |
+        TDF_CALLBACK_TIMER |
+        TDF_POSITION_RELATIVE_TO_WINDOW | 
+        TDF_ALLOW_DIALOG_CANCELLATION;
+    dialogConfig.dwCommonButtons = TDCBF_CANCEL_BUTTON | TDCBF_OK_BUTTON;
     dialogConfig.pszContent = L"Converting.";
     dialogConfig.pfCallback = taskDialogCallbackProc;
     dialogConfig.lpCallbackData = (LONG_PTR)convertArgs;
@@ -467,6 +495,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 CONVERTARGS convertArgs;
                 memset(&convertArgs, 0, sizeof(convertArgs));
                 convertArgs.wordSize = 1 << (selectResult + 1);
+
                 if (destIsSrc)
                     convertArgs.src = CreateFileW(srcPath,
                         GENERIC_READ | GENERIC_WRITE,
@@ -485,11 +514,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                         FILE_ATTRIBUTE_NORMAL,
                         NULL
                     );
+
                 if (convertArgs.src == INVALID_HANDLE_VALUE)
                 {
                     printErrorMessage(hWnd,GetLastError());
                     return 0;
                 }
+
 
                 LARGE_INTEGER size;
                 GetFileSizeEx(convertArgs.src, &size);
@@ -501,12 +532,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     CloseHandle(convertArgs.src);
                     return 0;
                 }
-
-                if (destIsSrc)
-                {
-                    startConversion(hWnd,&convertArgs);
-                }
-                else
+          
+                if (!destIsSrc)
                 {
                     if (fileExists(desPath))
                     {
@@ -534,11 +561,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                         CloseHandle(convertArgs.des);
                         printErrorMessage(hWnd, GetLastError());
                     }
-
-                    startConversion(hWnd, &convertArgs);
-                    CloseHandle(convertArgs.des);
-                    CloseHandle(convertArgs.src);
                 }
+                startConversion(hWnd, &convertArgs);
+                CloseHandle(convertArgs.src);
+                CloseHandle(convertArgs.des);
             }
             
         }

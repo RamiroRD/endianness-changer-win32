@@ -28,6 +28,8 @@ WCHAR  srcPath[MAX_PATH];
 WCHAR  desPath[MAX_PATH];
 const UCHAR WORD_SIZES = 4;
 const WCHAR * WORD_SIZES_STRINGS[4] = { L"2", L"4", L"8", L"16" };
+HANDLE workerThread;
+
 // Forward declarations of functions included in this code module:
 ATOM                registerWindowClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
@@ -325,10 +327,15 @@ void setGoButtonState()
     EnableWindow(goButton, isSrcSet && isWordSizeSet && (!isDestSrc || isDesSet));
 }
 
-void printErrorMessage(HWND hWnd)
+void printErrorMessage(HWND hWnd, DWORD errorCode)
 {
     MessageBoxW(hWnd,
-        L"printErrorMessage", "..", MB_OK);
+        L"printErrorMessage", L"..", MB_OK);
+}
+
+DWORD CALLBACK doConvert(LPVOID arg)
+{
+    return convertFiles((CONVERTARGS*)arg);
 }
 
 BOOL fileExists(LPWSTR szPath)
@@ -337,6 +344,64 @@ BOOL fileExists(LPWSTR szPath)
 
     return (dwAttrib != INVALID_FILE_ATTRIBUTES &&
         !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
+}
+
+HRESULT CALLBACK taskDialogCallbackProc(HWND hWnd,
+    UINT uNotification, 
+    WPARAM wParam, 
+    LPARAM lParam, 
+    LONG_PTR convertArgs)
+{
+    switch (uNotification)
+    {
+    case TDN_CREATED:
+    {
+        workerThread = CreateThread(NULL, 0, doConvert, (LPVOID) convertArgs, 0, NULL);
+        break;
+    }
+    case TDN_DESTROYED:
+    {
+        DWORD exitCode;
+        WaitForSingleObject(workerThread, INFINITE);
+        GetExitCodeThread(workerThread, &exitCode);
+        if (!exitCode)
+            printErrorMessage(hWnd, GetLastError());
+        break;
+    }
+    case TDN_TIMER:
+    {
+        int progress = ((CONVERTARGS *)convertArgs)->progress;
+        SendMessage(hWnd, TDM_SET_PROGRESS_BAR_POS, progress, (LPARAM)NULL);
+        if (WaitForSingleObject(workerThread, 0) == WAIT_OBJECT_0)
+            SendMessage(hWnd, TDN_DESTROYED, 0, 0);
+        break;
+    }
+    case TDN_BUTTON_CLICKED:
+    {
+        ((CONVERTARGS *)convertArgs)->cancel = TRUE;
+        break;
+    }
+    default:
+    {
+        return DefWindowProcW(hWnd, uNotification, wParam, lParam);
+    }
+    }
+    return 0;
+}
+
+void startConversion(HWND hWnd, CONVERTARGS * convertArgs)
+{
+    TASKDIALOGCONFIG dialogConfig;
+    memset(&dialogConfig, 0, sizeof(dialogConfig));
+    dialogConfig.cbSize = sizeof(dialogConfig);
+    dialogConfig.hwndParent = hWnd;
+    dialogConfig.hInstance = hInst;
+    dialogConfig.dwFlags = TDF_SHOW_PROGRESS_BAR | TDF_CALLBACK_TIMER |TDF_POSITION_RELATIVE_TO_WINDOW;
+    dialogConfig.dwCommonButtons = TDCBF_CANCEL_BUTTON;
+    dialogConfig.pszContent = L"Converting.";
+    dialogConfig.pfCallback = taskDialogCallbackProc;
+    dialogConfig.lpCallbackData = (LONG_PTR)convertArgs;
+    TaskDialogIndirect(&dialogConfig, NULL, NULL, NULL);
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -396,15 +461,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 // We assume everything was input by now
                 LRESULT selectResult = SendMessage(wordSelect, CB_GETCURSEL, (WPARAM)NULL, (LPARAM)NULL);
                 BOOL destIsSrc = Button_GetCheck(sameCheckBox);
-                int wordSize = 1 << (selectResult + 1);
-                // Copy src and dest from text boxes
-                // I dont know if its safe to just their pointers
                 GetWindowTextW(srcTextBox, srcPath, MAX_PATH);
                 GetWindowTextW(desTextBox, desPath, MAX_PATH);
 
-                HANDLE src;
+                CONVERTARGS convertArgs;
+                memset(&convertArgs, 0, sizeof(convertArgs));
+                convertArgs.wordSize = 1 << (selectResult + 1);
                 if (destIsSrc)
-                    src = CreateFileW(srcPath,
+                    convertArgs.src = CreateFileW(srcPath,
                         GENERIC_READ | GENERIC_WRITE,
                         0,
                         NULL,
@@ -413,7 +477,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                         NULL
                         );
                 else
-                    src = CreateFileW(srcPath,
+                    convertArgs.src = CreateFileW(srcPath,
                         GENERIC_READ,
                         FILE_SHARE_READ,
                         NULL,
@@ -421,15 +485,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                         FILE_ATTRIBUTE_NORMAL,
                         NULL
                     );
-                if (src == INVALID_HANDLE_VALUE)
+                if (convertArgs.src == INVALID_HANDLE_VALUE)
                 {
-                    printErrorMessage(GetLastError());
+                    printErrorMessage(hWnd,GetLastError());
+                    return 0;
+                }
+
+                LARGE_INTEGER size;
+                GetFileSizeEx(convertArgs.src, &size);
+                if (size.QuadPart % convertArgs.wordSize != 0)
+                {
+                    MessageBoxW(hWnd,
+                        L"The source file size is not a multiple of the given word size. Please choose another file or another word size.",
+                        L"Wrong file size", MB_OK | MB_ICONEXCLAMATION);
+                    CloseHandle(convertArgs.src);
                     return 0;
                 }
 
                 if (destIsSrc)
                 {
-                    convertFiles(src, NULL, wordSize, NULL);
+                    startConversion(hWnd,&convertArgs);
                 }
                 else
                 {
@@ -441,21 +516,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                             MB_OKCANCEL | MB_ICONQUESTION);
                         if (mbResult == IDCANCEL)
                         {
-                            CloseHandle(src);
+                            CloseHandle(convertArgs.src);
                             return 0;
                         }
                     }
 
-                    HANDLE dest = CreateFileW(desPath,
-                        GENERIC_READ | GENERIC_WRITE,
+                    convertArgs.des = CreateFileW(desPath,
+                        GENERIC_WRITE,
                         0,
                         NULL,
                         CREATE_ALWAYS,
                         FILE_ATTRIBUTE_NORMAL,
                         NULL
                     );
+                    if (convertArgs.des == INVALID_HANDLE_VALUE)
+                    {
+                        CloseHandle(convertArgs.des);
+                        printErrorMessage(hWnd, GetLastError());
+                    }
 
-                    convertFiles(src, dest, wordSize, NULL);
+                    startConversion(hWnd, &convertArgs);
+                    CloseHandle(convertArgs.des);
+                    CloseHandle(convertArgs.src);
                 }
             }
             

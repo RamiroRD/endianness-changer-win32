@@ -70,10 +70,13 @@ static DWORD64 _convertFiles(HANDLE src,
         {
         case 2:
             convertWord2(buffer);
+            break;
         case 4:
             convertWord4(buffer);
+            break;
         default:
             convertWord(buffer, word_size);
+            break;
         }
         
 

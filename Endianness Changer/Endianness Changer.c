@@ -87,12 +87,12 @@ ATOM registerWindowClass(HINSTANCE hInstance)
     wcex.cbClsExtra     = 0;
     wcex.cbWndExtra     = 0;
     wcex.hInstance      = hInstance;
-    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ENDIANNESSCHANGER));
+    wcex.hIcon = NULL;
     wcex.hCursor        = LoadCursor(NULL, IDC_ARROW);
     wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW);
     wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_ENDIANNESSCHANGER);
     wcex.lpszClassName  = szWindowClass;
-    wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+    wcex.hIconSm        = NULL;
 
     return RegisterClassExW(&wcex);
 }
@@ -382,6 +382,9 @@ HRESULT CALLBACK taskDialogCallbackProc(HWND hWnd,
             if (WaitForSingleObject(workerThread, 0) == WAIT_OBJECT_0)
             {
                 DWORD exitCode;
+                /* Ugly workaround */
+                SendMessage(hWnd, TDM_SET_PROGRESS_BAR_POS, 99, (LPARAM)NULL);
+                SendMessage(hWnd, TDM_SET_PROGRESS_BAR_POS, 100, (LPARAM)NULL);
                 SendMessageW(hWnd, TDM_ENABLE_BUTTON, TDCBF_OK_BUTTON, TRUE);
                 SendMessageW(hWnd, TDM_ENABLE_BUTTON, TDCBF_CANCEL_BUTTON, FALSE);
                 GetExitCodeThread(workerThread, &exitCode);
@@ -527,7 +530,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 if (size.QuadPart % convertArgs.wordSize != 0)
                 {
                     MessageBoxW(hWnd,
-                        L"The source file size is not a multiple of the given word size. Please choose another file or another word size.",
+                        L"The source file size is not a multiple of the word size selected. Please choose another file or another word size.",
                         L"Wrong file size", MB_OK | MB_ICONEXCLAMATION);
                     CloseHandle(convertArgs.src);
                     return 0;

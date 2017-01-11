@@ -399,7 +399,7 @@ HRESULT CALLBACK taskDialogCallbackProc(HWND hWnd,
     {
     case TDN_CREATED:
     {
-        SendMessageW(hWnd, TDM_ENABLE_BUTTON, TDCBF_OK_BUTTON, FALSE);
+        SendMessageW(hWnd, TDM_ENABLE_BUTTON, TDCBF_CANCEL_BUTTON, FALSE);
         /* Start conversion thread */
         workerThread = CreateThread(NULL, 0, doConvert, (LPVOID) convertArgs, 0, NULL);
         break;
@@ -424,24 +424,20 @@ HRESULT CALLBACK taskDialogCallbackProc(HWND hWnd,
             SendMessage(hWnd, TDM_SET_PROGRESS_BAR_POS, 99, (LPARAM)NULL);
             SendMessage(hWnd, TDM_SET_PROGRESS_BAR_POS, 100, (LPARAM)NULL);
 
-            /* Enable OK button and disable cancel button */
-            SendMessageW(hWnd, TDM_ENABLE_BUTTON, TDCBF_OK_BUTTON, TRUE);
-            SendMessageW(hWnd, TDM_ENABLE_BUTTON, TDCBF_CANCEL_BUTTON, FALSE); /* fixme: not working */
-
             GetExitCodeThread(workerThread, &exitCode);
             workerThread = NULL;
-            
-            
+
+
             if (!((CONVERTARGS *)convertArgs)->cancel)
             {
-                /* If not canceled, check exit code and show error message if necessary */
+                /* If not cancelled, check exit code and show error message if necessary */
                 if (!exitCode)
                     printErrorMessage(hWnd, GetLastError());
                 else
                     MessageBoxW(hWnd, L"Conversion successful", L"Finished", MB_OK | MB_ICONASTERISK);
-                }
-                break;
             }
+            PostMessage(hWnd, WM_CLOSE, 0, 0);
+        }
         break;
     }
     case TDN_BUTTON_CLICKED:
@@ -454,9 +450,7 @@ HRESULT CALLBACK taskDialogCallbackProc(HWND hWnd,
         break;
     }
     default:
-    {
-        return DefWindowProcW(hWnd, uNotification, wParam, lParam);
-    }
+        break;
     }
     return 0;
 }
@@ -473,7 +467,7 @@ void startConversion(HWND hWnd, CONVERTARGS * convertArgs)
         TDF_CALLBACK_TIMER |
         TDF_POSITION_RELATIVE_TO_WINDOW | 
         TDF_ALLOW_DIALOG_CANCELLATION;
-    dialogConfig.dwCommonButtons = TDCBF_CANCEL_BUTTON | TDCBF_OK_BUTTON;
+    dialogConfig.dwCommonButtons = TDCBF_CANCEL_BUTTON;
     dialogConfig.pszContent = L"Converting.";
     dialogConfig.pfCallback = taskDialogCallbackProc;
     dialogConfig.lpCallbackData = (LONG_PTR)convertArgs;

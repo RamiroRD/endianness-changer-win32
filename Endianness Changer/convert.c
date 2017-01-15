@@ -1,7 +1,24 @@
 #include <WinBase.h>
+#include <math.h>
 #include "stdafx.h"
 #include "convert.h"
-#include "math.h"
+
+
+typedef struct
+{
+    HANDLE  inFile;
+    HANDLE  outFile;
+    DWORD64 readOffset;  /* next byte to read */
+    DWORD64 writeOffset; /* next byte to write */
+    HANDLE  readMutex;   /* protects readOffset and provides read exclusion */
+    HANDLE  writeMutex;  /* protects writeOffset and provides write exclusion */
+    WORD    blockSize;   /* amount of words to process at once */
+    WORD    wordSize;
+    DWORD64 totalWords;
+    WORD    error;
+} CONVERSIONSTRUCT;
+
+
 
 static void convertWord(char * word_ptr, UCHAR word_size)
 {
@@ -32,6 +49,102 @@ static void convertWord4(char * word_ptr)
     aux = word_ptr[1];
     word_ptr[1] = word_ptr[2];
     word_ptr[2] = aux;
+}
+
+static void convertBlock(char * word_ptr, UCHAR word_size, WORD n)
+{
+    WORD i;
+    for (i = 0; i < n; i++)
+    {
+        switch (word_size)
+        {
+        case 2:
+            convertWord2(word_ptr + i*word_size);
+            break;
+        case 4:
+            convertWord4(word_ptr + i*word_size);
+            break;
+        default:
+            convertWord (word_ptr + i*word_size, word_size);
+            break;
+        } 
+    }
+}
+
+
+static DWORD WINAPI processBlock(LPVOID args)
+{
+    CONVERSIONSTRUCT * context = (CONVERSIONSTRUCT*)args;
+    DWORD64 readOffsetLocal;
+    DWORD64 writeOffsetLocal;
+    /* Should always be the same as the block size in bytes after every IO operation */
+    DWORD   bytesIO;
+    /* We do not check for NULL, an exception will be thrown if allocation fails */
+    BYTE * buffer = HeapAlloc(GetProcessHeap(),
+                    HEAP_GENERATE_EXCEPTIONS,
+                    context->wordSize);
+    DWORD blockSizeBytes = context->wordSize * context->blockSize;
+    
+    /* This loop will be executed as long as there are bytes left to read and there is no error */
+    while(!context->error)
+    {
+        /* We find out the offset of the next block to read, process and write */
+        if (WaitForSingleObject(context->readMutex, INFINITE) != WAIT_OBJECT_0)
+        {
+            context->error = TRUE;
+            break;
+        }
+        readOffsetLocal = context->readOffset;
+
+        /* Have all the words already been read? */
+        if (readOffsetLocal == blockSizeBytes)
+        {
+            /* We are done, release the lock and exit */
+            ReleaseMutex(context->readMutex);
+            break;
+        }
+        
+        /* For last block read, reduce block size */
+        if (context->totalWords * context->wordSize - readOffsetLocal < blockSizeBytes)
+            blockSizeBytes = context->totalWords * context->wordSize - readOffsetLocal;
+
+        /* Atomic block read */
+        if (ReadFile(context->inFile, buffer, blockSizeBytes, &bytesIO, NULL) == FALSE)
+        {
+            context->error = TRUE;
+            ReleaseMutex(context->readMutex);
+            break;
+        }
+        context->readOffset += bytesIO;
+        ReleaseMutex(context->readMutex);
+
+        /* During execution of this function, one of the remaining threads can read the consecutive data */
+        convertBlock(buffer, context->wordSize, context->blockSize);
+
+        /* Now we check if it is our turn to write */
+        /* It is our turn when others threads have written up to the point where we have read */
+        if(WaitForSingleObject(context->writeMutex, INFINITE) != WAIT_OBJECT_0)
+            break;
+        writeOffsetLocal = context->writeOffset;
+        ReleaseMutex(context->writeMutex);
+        while (writeOffsetLocal != readOffsetLocal && !context->error)
+        {
+            /* If not, yield execution and keep polling until it is */
+            SwitchToThread();
+            if(WaitForSingleObject(context->writeMutex, INFINITE) != WAIT_OBJECT_0)
+                break;
+            writeOffsetLocal = context->writeOffset;
+            ReleaseMutex(context->writeMutex);
+        }
+        /* Atomic block write*/
+        if (WaitForSingleObject(context->writeMutex, INFINITE) != WAIT_OBJECT_0)
+            break;
+
+        /* TODO write block here */
+        context->writeOffset = writeOffsetLocal + blockSizeBytes;
+        ReleaseMutex(context->writeMutex);  
+    }
+    HeapFree(GetProcessHeap(), 0, buffer);
 }
 
 

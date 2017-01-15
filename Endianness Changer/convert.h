@@ -10,6 +10,8 @@ typedef struct
     DWORD64 bytesWritten;
     WORD progress;
     BOOL cancel;
+    UCHAR threads;
+    WORD blockSize;
 } CONVERTARGS;
 
 BOOL convertFiles(CONVERTARGS * args);

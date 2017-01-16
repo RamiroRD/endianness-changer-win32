@@ -558,24 +558,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 /* We fill out the fields of our conversion structure */
                 convertArgs.wordSize = 1 << (selectResult + 1);
 
-                if (destIsSrc)
-                    convertArgs.src = CreateFileW(srcPath,
-                        GENERIC_READ | GENERIC_WRITE,
-                        0,
-                        NULL,
-                        OPEN_EXISTING,
-                        FILE_ATTRIBUTE_NORMAL,
-                        NULL
-                        );
-                else
-                    convertArgs.src = CreateFileW(srcPath,
+  
+               convertArgs.src = CreateFileW(srcPath,
                         GENERIC_READ,
-                        FILE_SHARE_READ,
+                        FILE_SHARE_READ | FILE_SHARE_WRITE,
                         NULL,
                         OPEN_EXISTING,
                         FILE_ATTRIBUTE_NORMAL,
-                        NULL
-                    );
+                        NULL);
 
                 if (convertArgs.src == INVALID_HANDLE_VALUE)
                 {
@@ -613,18 +603,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                     convertArgs.des = CreateFileW(desPath,
                         GENERIC_WRITE,
-                        0,
+                        FILE_SHARE_READ,
                         NULL,
                         CREATE_ALWAYS,
                         FILE_ATTRIBUTE_NORMAL,
                         NULL
                     );
-
-                    if (convertArgs.des == INVALID_HANDLE_VALUE)
-                    {
-                        CloseHandle(convertArgs.des);
-                        printErrorMessage(hWnd, GetLastError());
-                    }
+                }else{
+                    convertArgs.des = CreateFileW(srcPath,
+                        GENERIC_WRITE,
+                        FILE_SHARE_READ,
+                        NULL,
+                        OPEN_EXISTING,
+                        FILE_ATTRIBUTE_NORMAL,
+                        NULL
+                    );
+                }
+                if (convertArgs.des == INVALID_HANDLE_VALUE)
+                {
+                    CloseHandle(convertArgs.des);
+                    printErrorMessage(hWnd, GetLastError());
+                    return 0;
                 }
                 startConversion(hWnd, &convertArgs);
                  

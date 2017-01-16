@@ -16,12 +16,12 @@ WCHAR szTitle[] = L"Endianness Changer";
 WCHAR szWindowClass[] = L"MainWindowClass";
 
 /* Main window size global constants */
-const MIN_WIDTH = 350;
-const MIN_HEIGHT = 240;
-const WIDTH = 450;
-const HEIGHT = 240;
-const MAX_WIDTH = 1000;
-const MAX_HEIGHT = 240;
+const int MIN_WIDTH = 350;
+const int MIN_HEIGHT = 240;
+const int WIDTH = 450;
+const int HEIGHT = 240;
+const int MAX_WIDTH = 1000;
+const int MAX_HEIGHT = 240;
 
 /* Global handle to "Source" label */
 HWND  srcLabel;
@@ -257,18 +257,18 @@ void createWidgets(HWND hWnd)
 
 void resizeWidgets(const int width, const int height)
 {
-    const WWIDTH = width;
-    const WHEIGHT = height;
-    const HMARGIN = 20;
-    const VMARGIN = 10;
-    const VGAP = 5;
-    const BUTTON_HEIGHT = 25;
-    const BROWSE_BUTTON_WIDTH = 30;
-    const BUTTON_WIDTH = 75;
-    const LABEL_HEIGHT = 15;
-    const TEXTBOX_HEIGHT = 23;
-    const COMBOBOX_HEIGHT = 23;
-    const AREA_WIDTH = WWIDTH - (2 * HMARGIN);
+    const int WWIDTH = width;
+    const int WHEIGHT = height;
+    const int HMARGIN = 20;
+    const int VMARGIN = 10;
+    const int VGAP = 5;
+    const int BUTTON_HEIGHT = 25;
+    const int BROWSE_BUTTON_WIDTH = 30;
+    const int BUTTON_WIDTH = 75;
+    const int LABEL_HEIGHT = 15;
+    const int TEXTBOX_HEIGHT = 23;
+    const int COMBOBOX_HEIGHT = 23;
+    const int AREA_WIDTH = WWIDTH - (2 * HMARGIN);
 
     int currentY = VMARGIN;
     HDWP positions = BeginDeferWindowPos(10);

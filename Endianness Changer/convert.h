@@ -6,12 +6,12 @@ typedef struct
 {
     HANDLE src;
     HANDLE des;
-    UCHAR wordSize;
     DWORD64 bytesWritten;
-    WORD progress;
-    BOOL cancel;
-    UCHAR threads;
+    volatile WORD progress;
     WORD blockSize;
+    UCHAR wordSize;
+    volatile UCHAR threads;
+    BOOL cancel;
 } CONVERTARGS;
 
 BOOL convertFiles(CONVERTARGS * args);
